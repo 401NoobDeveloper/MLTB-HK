@@ -57,7 +57,6 @@ from .ext_utils.media_utils import (
     ffconcat_escape,
 )
 from .telegram_helper.message_utils import (
-    check_bot_pm,
     send_message,
     send_rich_message,
     send_status_message,
@@ -72,7 +71,6 @@ class TaskConfig:
         self.user = self.message.from_user or self.message.sender_chat
         self.user_id = self.user.id
         self.user_dict = user_data.get(self.user_id, {})
-        self.bot_pm = Config.BOT_PM or self.user_dict.get("BOT_PM", False)
         self.clone_dump_chats = {}
         self.dir = f"{DOWNLOAD_DIR}{self.mid}"
         self.up_dir = ""
@@ -183,15 +181,6 @@ class TaskConfig:
                 raise ValueError(f"NO TOKEN! {token_path} not Exists!")
 
     async def before_start(self):
-        if (
-            self.bot_pm
-            and self.is_super_chat
-            and not await check_bot_pm(self.user_id)
-        ):
-            raise ValueError(
-                "BOT PM is enabled, so start the bot in PM first and run the task again: "
-                f"https://t.me/{TgClient.NAME}?start=start"
-            )
         self.name_sub = (
             self.name_sub
             or self.user_dict.get("NAME_SUBSTITUTE", False)
