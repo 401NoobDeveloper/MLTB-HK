@@ -204,14 +204,25 @@ class TelegramUploader:
             if msg is None or msg.chat.id == self._listener.user_id:
                 continue
             try:
-                sent = await TgClient.bot.copy_message(
-                    chat_id=self._listener.user_id,
-                    from_chat_id=msg.chat.id,
-                    message_id=msg.id,
-                )
-                self._pm_msgs.append(sent)
+                sent = await self._copy_message(msg.chat.id, msg.id)
+                if sent is not None:
+                    self._pm_msgs.append(sent)
             except Exception as e:
                 LOGGER.error(f"Failed to send file to user PM: {e}")
+
+    async def _copy_message(self, from_chat_id, message_id):
+        while True:
+            try:
+                return await TgClient.bot.copy_message(
+                    chat_id=self._listener.user_id,
+                    from_chat_id=from_chat_id,
+                    message_id=message_id,
+                )
+            except (FloodWait, FloodPremiumWait) as f:
+                LOGGER.warning(f"FloodWait {f.value}s while copying to user PM")
+                await sleep(f.value * 1.2)
+                if self._listener.is_cancelled:
+                    return None
 
     def _schedule_pm_delete(self):
         if (
@@ -252,6 +263,12 @@ class TelegramUploader:
             self._base_msg = None
 
     async def upload(self):
+        try:
+            await self._upload()
+        finally:
+            self._schedule_pm_delete()
+
+    async def _upload(self):
         await self._user_settings()
         res = await self._msg_to_reply()
         if not res:
@@ -269,7 +286,6 @@ class TelegramUploader:
                 self._up_path = f_path = ospath.join(dirpath, file_)
                 if not await aiopath.exists(self._up_path):
                     if intervals["stopAll"]:
-                        self._schedule_pm_delete()
                         return
                     LOGGER.error(f"{self._up_path} not exists! Continue uploading!")
                     continue
@@ -283,7 +299,6 @@ class TelegramUploader:
                         self._corrupted += 1
                         continue
                     if self._listener.is_cancelled:
-                        self._schedule_pm_delete()
                         return
                     cap_mono = await self._prepare_file(file_, dirpath)
                     if self._last_msg_in_group:
@@ -334,7 +349,6 @@ class TelegramUploader:
                                     f"Can't forward message to clone dump chat: {ch}. Error: {e}"
                                 )
                     if self._listener.is_cancelled:
-                        self._schedule_pm_delete()
                         return
                     if (
                         self._files_links
@@ -353,7 +367,6 @@ class TelegramUploader:
                     self._error = str(err)
                     self._corrupted += 1
                     if self._listener.is_cancelled:
-                        self._schedule_pm_delete()
                         return
                 if not self._listener.is_cancelled and await aiopath.exists(
                     self._up_path
@@ -371,7 +384,6 @@ class TelegramUploader:
         if self._base_msg:
             await delete_message(self._base_msg)
             self._base_msg = None
-        self._schedule_pm_delete()
         if self._listener.is_cancelled:
             return
         if self._total_files == 0:

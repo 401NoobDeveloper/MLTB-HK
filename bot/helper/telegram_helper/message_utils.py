@@ -1,4 +1,5 @@
 from asyncio import create_task, sleep
+from pyrogram.enums import ChatAction
 from pyrogram.errors import FloodWait, FloodPremiumWait
 from re import match as re_match
 from time import time
@@ -111,6 +112,21 @@ async def send_user_message(user_id, text, buttons=None):
     except Exception as e:
         LOGGER.error(str(e))
         return str(e)
+
+
+_bot_pm_checked = {}
+
+
+async def check_bot_pm(user_id):
+    if time() - _bot_pm_checked.get(user_id, 0) < 300:
+        return True
+    try:
+        await TgClient.bot.send_chat_action(user_id, ChatAction.TYPING)
+        _bot_pm_checked[user_id] = time()
+        return True
+    except Exception as e:
+        LOGGER.warning(f"Bot PM is not available for {user_id}: {e}")
+        return False
 
 
 async def delete_message(message):
