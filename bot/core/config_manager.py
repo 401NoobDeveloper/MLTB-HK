@@ -12,6 +12,9 @@ class Config:
     AUTHORIZED_CHATS = ""
     BASE_URL = ""
     BASE_URL_PORT = int(getenv("PORT", "80"))
+    BOT_PM = False
+    BOT_PM_DELETE = False
+    BOT_PM_DELETE_TIME = 3600
     BOT_TOKEN = ""
     BUZZHEAVIER_ACCOUNT_ID = ""
     BUZZHEAVIER_FOLDER_ID = ""

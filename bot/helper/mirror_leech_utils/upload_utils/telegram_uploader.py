@@ -30,7 +30,7 @@ from ....core.config_manager import Config
 from ....core.telegram_manager import TgClient
 from ...ext_utils.bot_utils import sync_to_async
 from ...ext_utils.files_utils import is_archive, get_base_name
-from ...telegram_helper.message_utils import delete_message
+from ...telegram_helper.message_utils import delete_message, schedule_auto_delete
 from ...ext_utils.media_utils import (
     get_media_info,
     get_document_type,
@@ -58,6 +58,8 @@ class TelegramUploader:
         self._up_path = ""
         self._lprefix = ""
         self._media_group = False
+        self._bot_pm = False
+        self._pm_msgs = []
         self._is_private = False
         self._sent_msg = None
         self._user_session = self._listener.user_transmission
@@ -80,6 +82,11 @@ class TelegramUploader:
             Config.MEDIA_GROUP
             if "MEDIA_GROUP" not in self._listener.user_dict
             else False
+        )
+        self._bot_pm = self._listener.bot_pm
+        LOGGER.info(
+            f"BOT_PM copy: {self._bot_pm} | source chat: "
+            f"{self._listener.message.chat.id} | user: {self._listener.user_id}"
         )
         self._lprefix = self._listener.user_dict.get("LEECH_FILENAME_PREFIX") or (
             Config.LEECH_FILENAME_PREFIX
@@ -187,12 +194,48 @@ class TelegramUploader:
         ]
         for i in range(0, len(inputs), 10):
             batch = inputs[i : i + 10]
-            self._sent_msg = (
-                await self._sent_msg.reply_media_group(
-                    media=batch,
-                    disable_notification=True,
+            sent = await self._sent_msg.reply_media_group(
+                media=batch,
+                disable_notification=True,
+            )
+            await self._copy_to_pm(sent)
+            self._sent_msg = sent[-1]
+
+    async def _copy_to_pm(self, msgs):
+        if not self._bot_pm:
+            return
+        for msg in msgs:
+            if msg is None or msg.chat.id == self._listener.user_id:
+                continue
+            try:
+                sent = await self._copy_message(msg.chat.id, msg.id)
+                if sent is not None:
+                    self._pm_msgs.append(sent)
+            except Exception as e:
+                LOGGER.error(f"Failed to send file to user PM: {e}")
+
+    async def _copy_message(self, from_chat_id, message_id):
+        while True:
+            try:
+                return await TgClient.bot.copy_message(
+                    chat_id=self._listener.user_id,
+                    from_chat_id=from_chat_id,
+                    message_id=message_id,
                 )
-            )[-1]
+            except (FloodWait, FloodPremiumWait) as f:
+                LOGGER.warning(f"FloodWait {f.value}s while copying to user PM")
+                await sleep(f.value * 1.2)
+                if self._listener.is_cancelled:
+                    return None
+
+    def _schedule_pm_delete(self):
+        if (
+            Config.BOT_PM_DELETE
+            and Config.BOT_PM_DELETE_TIME > 0
+            and self._pm_msgs
+        ):
+            schedule_auto_delete(Config.BOT_PM_DELETE_TIME, *self._pm_msgs)
+            self._pm_msgs = []
 
     async def _send_media_group(self, subkey, key, msgs):
         for index, msg in enumerate(msgs):
@@ -224,6 +267,12 @@ class TelegramUploader:
             self._base_msg = None
 
     async def upload(self):
+        try:
+            await self._upload()
+        finally:
+            self._schedule_pm_delete()
+
+    async def _upload(self):
         await self._user_settings()
         res = await self._msg_to_reply()
         if not res:
@@ -281,6 +330,8 @@ class TelegramUploader:
                     self._last_msg_in_group = False
                     self._last_uploaded = 0
                     await self._upload_file(cap_mono, file_, f_path)
+                    if not self._listener.is_cancelled:
+                        await self._copy_to_pm([self._sent_msg])
                     if self._sent_msg and self._sent_msg.media_group_id:
                         for ch, ch_data in list(
                             self._listener.clone_dump_chats.items()
