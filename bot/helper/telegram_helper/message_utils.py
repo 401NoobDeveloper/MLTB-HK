@@ -1,4 +1,5 @@
 from asyncio import sleep
+from pyrogram.enums import ParseMode
 from pyrogram.errors import FloodWait, FloodPremiumWait
 from re import match as re_match
 from time import time
@@ -32,7 +33,7 @@ async def send_message(message, text, buttons=None, block=True):
 async def send_rich_message(message, rich_input, buttons=None, block=True):
     try:
         return await message.reply_rich(
-            rich_message=rich_input,
+            rich_text=rich_input,
             disable_notification=True,
             reply_markup=buttons,
         )
@@ -52,7 +53,8 @@ async def edit_message(message, text=None, buttons=None, block=True, rich_messag
         return await message.edit(
             text=text,
             reply_markup=buttons,
-            rich_message=rich_message,
+            rich_text=rich_message,
+            rich_text_parse_mode=ParseMode.HTML,
         )
     except FloodWait as f:
         LOGGER.warning(str(f))
