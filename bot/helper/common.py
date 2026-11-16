@@ -71,6 +71,7 @@ class TaskConfig:
         self.user = self.message.from_user or self.message.sender_chat
         self.user_id = self.user.id
         self.user_dict = user_data.get(self.user_id, {})
+        self.bot_pm = Config.BOT_PM or self.user_dict.get("BOT_PM", False)
         self.clone_dump_chats = {}
         self.dir = f"{DOWNLOAD_DIR}{self.mid}"
         self.up_dir = ""

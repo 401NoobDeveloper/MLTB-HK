@@ -1,4 +1,4 @@
-from asyncio import sleep
+from asyncio import create_task, sleep
 from pyrogram.errors import FloodWait, FloodPremiumWait
 from re import match as re_match
 from time import time
@@ -96,6 +96,23 @@ async def send_rss(text, chat_id, thread_id):
         return str(e)
 
 
+async def send_user_message(user_id, text, buttons=None):
+    try:
+        return await TgClient.bot.send_message(
+            chat_id=user_id,
+            text=text,
+            disable_notification=True,
+            reply_markup=buttons,
+        )
+    except (FloodWait, FloodPremiumWait) as f:
+        LOGGER.warning(str(f))
+        await sleep(f.value * 1.2)
+        return await send_user_message(user_id, text, buttons)
+    except Exception as e:
+        LOGGER.error(str(e))
+        return str(e)
+
+
 async def delete_message(message):
     try:
         await message.delete()
@@ -103,12 +120,22 @@ async def delete_message(message):
         LOGGER.error(str(e))
 
 
-async def auto_delete_message(cmd_message=None, bot_message=None):
-    await sleep(60)
-    if cmd_message is not None:
-        await delete_message(cmd_message)
-    if bot_message is not None:
-        await delete_message(bot_message)
+async def auto_delete_message(*messages, stime=60):
+    await sleep(stime)
+    for message in messages:
+        if message is not None:
+            await delete_message(message)
+
+
+_deletion_tasks = set()
+
+
+def schedule_auto_delete(seconds, *messages):
+    if not messages:
+        return
+    task = create_task(auto_delete_message(*messages, stime=seconds))
+    _deletion_tasks.add(task)
+    task.add_done_callback(_deletion_tasks.discard)
 
 
 async def delete_status():
