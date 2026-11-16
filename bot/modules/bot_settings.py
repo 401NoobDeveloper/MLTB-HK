@@ -64,7 +64,6 @@ DEFAULT_VALUES = {
     "SEARCH_LIMIT": 0,
     "UPSTREAM_BRANCH": "master",
     "DEFAULT_UPLOAD": "rc",
-    "BOT_PM_DELETE_TIME": 3600,
 }
 
 
@@ -96,12 +95,7 @@ async def get_buttons(key=None, edit_type=None):
                 "TG_PROXY",
             ]:
                 msg += "Restart required for this edit to take effect! You will not see the changes in bot vars, the edit will be in database only!\n\n"
-            if isinstance(Config.get(key), bool):
-                buttons.data_button("True", f"botset setbool {key} true")
-                buttons.data_button("False", f"botset setbool {key} false")
-                msg += f"Choose a value for {key}. Current value is '{Config.get(key)}'"
-            else:
-                msg += f"Send a valid value for {key}. Current value is '{Config.get(key)}'. Timeout: 60 sec"
+            msg += f"Send a valid value for {key}. Current value is '{Config.get(key)}'. Timeout: 60 sec"
         elif edit_type == "ariavar":
             buttons.data_button("Back", "botset aria")
             if key != "newkey":
@@ -661,12 +655,6 @@ async def edit_bot_settings(client, query):
             "RCLONE_SERVE_PASS",
         ]:
             await rclone_serve_booter()
-    elif data[1] == "setbool":
-        await query.answer()
-        value = data[3] == "true"
-        Config.set(data[2], value)
-        await database.update_config({data[2]: value})
-        await update_buttons(message, data[2], "botvar")
     elif data[1] == "resetnzb":
         await query.answer()
         res = await sabnzbd_client.set_config_default(data[2])
@@ -722,8 +710,6 @@ async def edit_bot_settings(client, query):
     elif data[1] == "botvar" and state == "edit":
         await query.answer()
         await update_buttons(message, data[2], data[1])
-        if isinstance(Config.get(data[2]), bool):
-            return
         pfunc = partial(edit_variable, pre_message=message, key=data[2])
         rfunc = partial(update_buttons, message, "var")
         await event_handler(client, query, pfunc, rfunc)
