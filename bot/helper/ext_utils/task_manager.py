@@ -59,6 +59,8 @@ async def check_running_tasks(listener, state="dl"):
     async with queue_dict_lock:
         if state == "up" and listener.mid in non_queued_dl:
             non_queued_dl.remove(listener.mid)
+        if state == "dl" and listener.mid in non_queued_up:
+            non_queued_up.remove(listener.mid)
         if (
             (all_limit or state_limit)
             and not listener.force_run

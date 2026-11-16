@@ -199,10 +199,7 @@ class BatchRunner:
                 if not await self._acquire_upload_slot():
                     await self._abort("")
                     return
-                try:
-                    await self._upload_batch(batch)
-                finally:
-                    await self._release_upload_slot()
+                await self._upload_batch(batch)
                 if self.listener.is_cancelled or intervals["stopAll"]:
                     await self._abort("")
                     return
@@ -220,19 +217,22 @@ class BatchRunner:
             LOGGER.error(f"{self.engine} batch error: {error}")
             await self._abort(str(error))
 
-    async def _release_download_queue(self):
+    async def _release_slot(self):
         async with queue_dict_lock:
             non_queued_dl.discard(self.listener.mid)
+            non_queued_up.discard(self.listener.mid)
         await start_from_queued()
 
     async def _acquire_upload_slot(self):
         add_to_queue, event = await check_running_tasks(self.listener, "up")
+        await start_from_queued()
         if add_to_queue:
             await event.wait()
         return not self.listener.is_cancelled and not intervals["stopAll"]
 
     async def _acquire_download_slot(self):
         add_to_queue, event = await check_running_tasks(self.listener, "dl")
+        await start_from_queued()
         if add_to_queue:
             async with task_dict_lock:
                 if self.listener.mid in task_dict:
@@ -241,11 +241,6 @@ class BatchRunner:
                     )
             await event.wait()
         return not self.listener.is_cancelled and not intervals["stopAll"]
-
-    async def _release_upload_slot(self):
-        async with queue_dict_lock:
-            non_queued_up.discard(self.listener.mid)
-        await start_from_queued()
 
     def _next_batch(self):
         return plan_batch(
@@ -461,7 +456,7 @@ class BatchRunner:
                     dir_id=self.dir_id,
                 )
         finally:
-            await self._release_download_queue()
+            await self._release_slot()
 
     async def _remove_torrent(self):
         raise NotImplementedError
@@ -471,7 +466,7 @@ class BatchRunner:
             LOGGER.error(f"{self.engine} batch aborted: {error}")
         await self._remove_torrent()
         await clean_download(self.listener.dir)
-        await self._release_download_queue()
+        await self._release_slot()
         cancelled = self.listener.is_cancelled or intervals["stopAll"]
         if cancelled:
             async with task_dict_lock:
