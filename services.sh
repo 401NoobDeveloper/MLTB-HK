@@ -1,7 +1,5 @@
 #!/bin/bash
 ARIA2C=${1:-blitzfetcher}
-QBIT=${2:-stormtorrent}
-SABNZBDPLUS=${3:-newsripper}
 
 tracker_list=$(curl -Ns https://ngosang.github.io/trackerslist/trackers_all_http.txt | awk '$0' | tr '\n\n' ',')
 
@@ -12,14 +10,13 @@ bt-enable-lpd=true
 bt-detach-seed-only=true
 bt-remove-unselected-file=true
 bt-tracker=[$tracker_list]
-bt-max-peers=0
+bt-max-peers=100
 enable-rpc=true
-rpc-max-request-size=1024M
-max-connection-per-server=10
-max-concurrent-downloads=1000
-split=10
-seed-ratio=0
-check-integrity=true
+rpc-max-request-size=64M
+max-connection-per-server=4
+max-concurrent-downloads=8
+split=4
+seed-ratio=1.0
 continue=true
 disk-cache=40M
 force-save=true
@@ -42,5 +39,3 @@ CONF
 
 chmod 600 .svc_rpc.conf
 $ARIA2C --conf-path=.svc_rpc.conf --daemon=true
-$QBIT -d --profile="$(pwd)"
-$SABNZBDPLUS -f sabnzbd/SABnzbd.ini -s :::8070 -b 0 -d -c -l 0 --console

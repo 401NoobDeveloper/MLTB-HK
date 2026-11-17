@@ -47,7 +47,7 @@ def load_config() -> Dict[str, Any]:
         return {
             "BOT_TOKEN": getenv("BOT_TOKEN", ""),
             "DATABASE_URL": getenv("DATABASE_URL", ""),
-            "DATABASE_NAME": getenv("DATABASE_NAME", "cloudbot"),
+            "DATABASE_NAME": getenv("DATABASE_NAME", "mltb"),
             "UPSTREAM_REPO": getenv("UPSTREAM_REPO", ""),
             "UPSTREAM_BRANCH": getenv("UPSTREAM_BRANCH", "master"),
         }
@@ -62,7 +62,7 @@ if not BOT_TOKEN:
 
 BOT_ID = BOT_TOKEN.split(":", 1)[0]
 
-DATABASE_NAME = config_file.get("DATABASE_NAME", "cloudbot")
+DATABASE_NAME = config_file.get("DATABASE_NAME", "mltb")
 
 if DATABASE_URL := config_file.get("DATABASE_URL", "").strip():
     try:
@@ -92,7 +92,7 @@ if UPSTREAM_REPO and "anasty17/mirror-leech-telegram-bot" not in UPSTREAM_REPO:
             f"git init -q \
                      && git config --global user.email deploy@cloudworker.local \
                      && git config --global user.name cloudworker \
-                     && git add . ':!config.py' \
+                     && git add . \
                      && git commit -sm update -q \
                      && git remote add origin {UPSTREAM_REPO} \
                      && git fetch origin -q \
